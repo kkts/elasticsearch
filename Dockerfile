@@ -1,36 +1,33 @@
-#
-# Elasticsearch Dockerfile
-#
-# https://github.com/dockerfile/elasticsearch
-#
+FROM java:7-jre
 
-# Pull base image.
-FROM dockerfile/java:oracle-java8
+# grab gosu for easy step-down from root
+RUN gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4
+RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/1.2/gosu-$(dpkg --print-architecture)" \
+	&& curl -o /usr/local/bin/gosu.asc -SL "https://github.com/tianon/gosu/releases/download/1.2/gosu-$(dpkg --print-architecture).asc" \
+	&& gpg --verify /usr/local/bin/gosu.asc \
+	&& rm /usr/local/bin/gosu.asc \
+	&& chmod +x /usr/local/bin/gosu
 
-ENV ES_PKG_NAME elasticsearch-1.5.0
+RUN apt-key adv --keyserver ha.pool.sks-keyservers.net --recv-keys 46095ACC8548582C1A2699A9D27D666CD88E42B4
 
-# Install Elasticsearch.
-RUN \
-  cd / && \
-  wget https://download.elasticsearch.org/elasticsearch/elasticsearch/$ES_PKG_NAME.tar.gz && \
-  tar xvzf $ES_PKG_NAME.tar.gz && \
-  rm -f $ES_PKG_NAME.tar.gz && \
-  mv /$ES_PKG_NAME /elasticsearch
+ENV ELASTICSEARCH_VERSION 1.5.2
 
-# Define mountable directories.
-VOLUME ["/data"]
+RUN echo "deb http://packages.elasticsearch.org/elasticsearch/${ELASTICSEARCH_VERSION%.*}/debian stable main" > /etc/apt/sources.list.d/elasticsearch.list
 
-# Mount elasticsearch.yml config
-ADD config/elasticsearch.yml /elasticsearch/config/elasticsearch.yml
+RUN apt-get update \
+	&& apt-get install elasticsearch=$ELASTICSEARCH_VERSION \
+	&& rm -rf /var/lib/apt/lists/*
 
-# Define working directory.
-WORKDIR /data
+ENV PATH /usr/share/elasticsearch/bin:$PATH
+COPY config /usr/share/elasticsearch/config
 
-# Define default command.
-CMD ["/elasticsearch/bin/elasticsearch"]
+VOLUME /usr/share/elasticsearch/data
 
-# Expose ports.
-#   - 9200: HTTP
-#   - 9300: transport
-EXPOSE 9200
-EXPOSE 9300
+COPY docker-entrypoint.sh /
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+
+EXPOSE 9200 9300
+
+CMD ["elasticsearch"]
